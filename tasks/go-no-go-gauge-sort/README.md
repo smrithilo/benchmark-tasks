@@ -33,8 +33,8 @@ python tasks/go-no-go-gauge-sort/check_demo.py     # about 75 s
 - the gauge reading on blocks seated in a gap, lying on the anvils, jammed tilted, held, or over the other gap;
 - the demo, replayed through `yam_arena.demo.ArmPlan` at 20 Hz with the blocks' resting places tracked, for the
   physical outcomes (a block drops into a gap exactly when it is narrower) and for every block staying out of GO,
-  every block dropping through both gaps and every block passing (every branch, for both arms): 4,367 steps
-  (218 s), worst IK error 0.083 mm / 0.015 deg, every joint inside the URDF limits, the arms' link-3/4/5,
+  every block dropping through both gaps and every block passing (every branch, for both arms): 4,527 steps
+  (226 s), a 0.5 s hold with the fingers shut before every let-go over a gap, worst IK error 0.083 mm / 0.015 deg, every joint inside the URDF limits, the arms' link-3/4/5,
   gripper and TCP frames never closer than 181 mm, every block ending in the tray its gauge readings call for,
   and the physical outcomes scoring 1.0.
 
@@ -64,9 +64,9 @@ inspect-robots run --embodiment yam_arena --policy yam_scripted \
 ```
 
 The demo is `demo()`. It gauges every block and sorts it by what the gauge did; it never reads the widths.
-For each block, one arm picks it up and sets it square over the GO gap, lets go, backs off and looks. If the
-block is seated in the gap, the arm grips it by its ends, lifts it out and tests it over the NO-GO gap the same
-way. If the block stayed out of GO, it goes to the red tray. After a NO-GO test, a block seated in NO-GO goes to
+For each block, one arm picks it up and sets it square over the GO gap, holds still for 0.5 s, lets go, backs
+off and looks. If the block is seated in the gap, the arm grips it by its ends, lifts it out and tests it over the
+NO-GO gap the same way. If the block stayed out of GO, it goes to the red tray. After a NO-GO test, a block seated in NO-GO goes to
 the red tray and one that stayed out goes to the green tray.
 
 - **Looking:** the `yam_scripted` policy sees only images and joint angles, so the demo reads the simulator's
@@ -82,12 +82,15 @@ the red tray and one that stayed out goes to the green tray.
 - **Sharing the gauge:** the arms take turns, left block 1, right block 5, left 2, right 6, and so on. An arm
   holds its next block above its starting place until the other arm has finished its delivery. Each arm uses
   its own half of each tray; a third block in the same half goes on top of the first.
-- About 4,370 of the 6,000 steps; the episode ends 1 s after the last block comes to rest in its tray.
+- **Settling:** a carried block sways a few millimetres across the gap while the arm lowers it, more than the
+  1.0 mm a side that the widest in-tolerance block (31.0 mm) has in GO. The arm holds still for 0.5 s, fingers shut,
+  before each let-go over a gap, so the sway dies out before the block is released.
+- About 4,530 of the 6,000 steps; the episode ends 1 s after the last block comes to rest in its tray.
 
 ## Run limit, runtime and seeds
 
 - Run limit: 6,000 control steps at 20 Hz (5 minutes). The demo gauges all eight blocks one at a time in
-  about 4,370 steps.
+  about 4,530 steps.
 - Seeds: `--seed 0`, `-E object_jitter=0`. The demo is deterministic; Dream-1 is not seeded.
 
 ## Not yet checked (needs the GPU)

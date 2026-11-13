@@ -11,8 +11,9 @@
    is narrower), every block staying out of GO, every block dropping through both gaps, and every block passing,
    which between them take each arm through every branch. Checked: joints inside the URDF limits, IK error under
    0.5 mm / 0.1 deg, the arms' link-3/4/5, gripper and TCP frame origins at least ARM_CLEARANCE apart, every
-   block ending in the tray its gauge readings call for, the physical scenario scoring 1.0, and the run fitting
-   in the run limit (6,000 steps).
+   block ending in the tray its gauge readings call for, the physical scenario scoring 1.0, every let-go over a
+   gap following a hold of SETTLE_S at the release point with the fingers shut, and the run fitting in the run
+   limit (6,000 steps).
 """
 
 from __future__ import annotations
@@ -102,8 +103,10 @@ def check_scoring() -> float:
     for name, (w, _, _) in g.PARTS.items():  # every part clears its nearest limit by >= 1.5 mm
         assert min(abs(w - g.LOWER), abs(w - g.UPPER)) >= g.MARGIN - 1e-9, name
     widths = sorted(w for w, _, _ in g.PARTS.values())  # the tightest case of each kind is in the batch
-    for limit, side in ((g.LOWER, -1), (g.LOWER, +1), (g.UPPER, -1), (g.UPPER, +1)):
-        assert any(abs(w - (limit + side * g.MARGIN)) < 1e-9 for w in widths), (limit, side)
+    for limit, side, margin in ((g.LOWER, -1, g.MARGIN), (g.LOWER, +1, g.MARGIN), (g.UPPER, -1, g.GO_MARGIN),
+                                (g.UPPER, +1, g.MARGIN)):
+        assert any(abs(w - (limit + side * margin)) < 1e-9 for w in widths), (limit, side)
+    assert max(w for w in widths if g.in_tolerance(w)) == g.UPPER - g.GO_MARGIN  # 1.0 mm a side in GO
     by = {o.name: o for o in g.OBJECTS}
     go = by["go_anvil_left"].pos[1] - by["go_anvil_right"].pos[1] - g.ANVIL[1]
     nogo = by["nogo_anvil_left"].pos[1] - by["nogo_anvil_right"].pos[1] - g.ANVIL[1]
@@ -239,6 +242,27 @@ class Blocks:
             self.pos[held] = tcp + self.held[held][1]
 
 
+def settles(plans_wp, gauge_tests: int) -> list[str]:
+    """Problems with the hold before each let-go over a gap (there are ``gauge_tests`` of them): the waypoint before
+    it must keep the fingers shut at the release point for SETTLE_S, after the lowering to that same point."""
+    problems, seen = [], 0
+    for arm, wps in plans_wp.items():
+        for i, w in enumerate(wps):
+            p = np.asarray(w.pos, float)
+            over_gap = any(abs(p[0] - g.GAUGE_X) < 1e-9 and abs(p[1] - gy) < 1e-9 for gy, _ in g.GAPS.values())
+            if not (w.finger == g.FINGER_AJAR and over_gap and "let go" in w.label):
+                continue
+            seen += 1
+            hold, lower = wps[i - 1], wps[i - 2]
+            ok = ("settle" in hold.label and hold.duration >= g.SETTLE_S - 1e-9 and hold.finger == g.FINGER_SHUT
+                  and lower.finger == g.FINGER_SHUT and np.allclose(hold.pos, p) and np.allclose(lower.pos, p))
+            if not ok:
+                problems.append(f"{arm} {w.label!r}: no {g.SETTLE_S} s settle hold before it")
+    if seen != gauge_tests:
+        problems.append(f"{seen} let-gos over a gap in the plan, {gauge_tests} gauge tests")
+    return problems
+
+
 def run(outcome, title: str) -> dict:
     """Replay the demo through ArmPlan with these gauge outcomes."""
     blocks = Blocks(outcome)
@@ -265,7 +289,7 @@ def run(outcome, title: str) -> dict:
             d = float(np.min(np.linalg.norm(pl[:, None] - pr[None], axis=2)))
             if d < closest:
                 closest, closest_at = d, (t, ll, lr)
-        problems = []
+        problems = settles(plans_wp, len(blocks.readings))
         final = {n: blocks.state(n) for n in g.PARTS}
         for name in g.PARTS:  # every block where its gauge readings send it
             go = blocks.readings.get((name, "go"))

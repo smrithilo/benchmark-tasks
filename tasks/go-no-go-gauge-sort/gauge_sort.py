@@ -38,10 +38,12 @@ PART_LEN, PART_H = 0.050, 0.020
 ALUMINIUM = (0.76, 0.77, 0.79)
 DENSITY = 2700.0  # kg/m^3
 
-# name -> (width along y in m, x, y) of its start. Four in tolerance (28.5 to 31.5 mm), two over (>= 34.5 mm), two
+# name -> (width along y in m, x, y) of its start. Four in tolerance (28.5 to 31.0 mm), two over (>= 34.5 mm), two
 # under (<= 25.5 mm): every part clears or misses each gap by at least 1.5 mm in width (0.75 mm a side), and the
-# four tightest cases (28.5, 31.5, 34.5, 25.5 mm) are all in the batch.
+# tightest cases at NO-GO and over GO (28.5, 25.5, 34.5 mm) are in the batch. The widest in-tolerance part, 31.0 mm,
+# has 2.0 mm in GO (1.0 mm a side; GO_MARGIN): at 31.5 mm (0.75 mm a side) the demo's block 8 jammed in GO.
 MARGIN = 0.0015
+GO_MARGIN = 0.0020
 PARTS = {
     "part_1": (0.0305, 0.16, +0.30),  # pass
     "part_2": (0.0345, 0.25, +0.30),  # over
@@ -50,7 +52,7 @@ PARTS = {
     "part_5": (0.0350, 0.16, -0.30),  # over
     "part_6": (0.0295, 0.25, -0.30),  # pass
     "part_7": (0.0250, 0.34, -0.30),  # under
-    "part_8": (0.0315, 0.43, -0.30),  # pass
+    "part_8": (0.0310, 0.43, -0.30),  # pass
 }
 
 
@@ -225,12 +227,17 @@ GAUGE_TURNOVER_S = 5.0  # one arm leaves the gauge this long before the other st
 # highest point less than SEATED_HIGH above the anvil tops (a seated block stands 5 mm proud of them).
 OVER_GAP, SEATED_LOW, SEATED_HIGH = 0.015, 0.003, 0.008
 
-# Durations (s). FETCH: to the block, descend, close, lift. INTO_GO: carry, lower, let go, back off, look.
-# TEST: to the block on the gauge, descend, close, lift, carry, lower, let go, back off, look/park.
+# Durations (s). FETCH: to the block, descend, close, lift. INTO_GO: carry, lower, settle, let go, back off, look.
+# TEST: to the block on the gauge, descend, close, lift, carry, lower, settle, let go, back off, look/park.
 # OUT: to the block, descend, close, lift (the gauge is free after this), carry, lower, let go, back off.
+# Settle: before each let-go over a gap the arm holds still, fingers shut. In simulation a carried block sways up
+# to 7 mm across the gap while it is lowered and was still 2.5 mm off when let go, more than the 0.75 mm a side
+# a 31.5 mm block had in GO; its edge caught an anvil and it jammed. The widest in-tolerance block is now 31.0 mm
+# (1.0 mm a side).
+SETTLE_S = 0.5
 FETCH = (1.5, 1.5, 0.8, 1.2)
-INTO_GO = (2.0, 2.0, 1.0, 1.0, 0.5)
-TEST = (1.0, 1.5, 0.8, 1.2, 1.5, 2.0, 1.0, 1.0, 0.5)
+INTO_GO = (2.0, 2.0, SETTLE_S, 1.0, 1.0, 0.5)
+TEST = (1.0, 1.5, 0.8, 1.2, 1.5, 2.0, SETTLE_S, 1.0, 1.0, 0.5)
 OUT = (1.0, 1.5, 0.8, 1.2, 1.8, 1.2, 0.6, 1.0)
 AT_GAUGE_S = sum(INTO_GO) + sum(TEST) + sum(OUT[:4])
 assert GAUGE_TURNOVER_S > sum(OUT[4:])
@@ -358,8 +365,9 @@ def _up(p) -> tuple[float, float, float]:
     return (p[0], p[1], TRAVEL_Z)
 
 
-def _move(grip, dest) -> list[tuple]:
-    """(pos, finger) for TEST/OUT: take the block at ``grip`` and let it go at ``dest``."""
+def _move(grip, dest, settle: bool = False) -> list[tuple]:
+    """(pos, finger) for TEST/OUT: take the block at ``grip`` and let it go at ``dest``; with ``settle``, hold
+    still at ``dest`` with the fingers shut before letting go (TEST)."""
     return [
         (_up(grip), FINGER_WIDE),
         (grip, FINGER_WIDE),
@@ -367,6 +375,7 @@ def _move(grip, dest) -> list[tuple]:
         (_up(grip), FINGER_SHUT),
         (_up(dest), FINGER_SHUT),
         (dest, FINGER_SHUT),
+        *([(dest, FINGER_SHUT)] if settle else []),
         (dest, FINGER_AJAR),
         (_up(dest), FINGER_AJAR),
     ]
@@ -390,9 +399,9 @@ def _block_steps(arm: str, name: str, start, insp: _Inspector) -> tuple[list, li
         Waypoint(d, p, f, f"{name}: {lab}", yaw)
         for d, (p, f), lab in zip(
             INTO_GO,
-            [(_up(go), FINGER_SHUT), (go, FINGER_SHUT), (go, FINGER_AJAR), (_up(go), FINGER_AJAR),
+            [(_up(go), FINGER_SHUT), (go, FINGER_SHUT), (go, FINGER_SHUT), (go, FINGER_AJAR), (_up(go), FINGER_AJAR),
              (_up(go), FINGER_AJAR)],
-            ("carry to GO", "lower over GO", "let go over GO", "back off", "look at GO"),
+            ("carry to GO", "lower over GO", "settle over GO", "let go over GO", "back off", "look at GO"),
             strict=True,
         )
     ]
@@ -405,10 +414,11 @@ def _block_steps(arm: str, name: str, start, insp: _Inspector) -> tuple[list, li
         if "test" not in memo:
             went_in, grip = insp.read(name, "go")
             if went_in:
-                memo["test"] = _move(grip, _over_gap("nogo")) + [(_up(_over_gap("nogo")), FINGER_AJAR)]
-            else:
+                nogo = _over_gap("nogo")
+                memo["test"] = _move(grip, nogo, settle=True) + [(_up(nogo), FINGER_AJAR)]
+            else:  # the same steps, so the schedule is fixed: the hold is over the tray
                 dest = insp.spot(arm, name, "reject_tray")
-                memo["test"] = _move(grip, dest) + [(_up(dest), FINGER_AJAR)]
+                memo["test"] = _move(grip, dest, settle=True) + [(_up(dest), FINGER_AJAR)]
         return memo["test"]
 
     def out_plan() -> list:
@@ -423,8 +433,8 @@ def _block_steps(arm: str, name: str, start, insp: _Inspector) -> tuple[list, li
                 memo["out"] = _move(grip, dest)
         return memo["out"]
 
-    test_labels = ("to the block on the gauge", "descend", "close", "lift", "carry", "lower", "let go", "back off",
-                   "look")
+    test_labels = ("to the block on the gauge", "descend", "close", "lift", "carry", "lower", "settle", "let go",
+                   "back off", "look")
     out_labels = ("to the block", "descend", "close", "lift", "carry to the tray", "lower", "let go", "back off")
     test = [_Lazy(d, f"{name}: test: {lab}", yaw, lambda i=i: test_plan()[i])
             for i, (d, lab) in enumerate(zip(TEST, test_labels, strict=True))]
