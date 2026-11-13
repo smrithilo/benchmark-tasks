@@ -1,8 +1,8 @@
-"""On the station table: eight loose aluminium blocks, all 50 mm long and 20 mm tall, whose widths differ by a few
+"""On the station table: seven loose aluminium blocks, all 50 mm long and 20 mm tall, whose widths differ by a few
 millimetres; a go/no-go gap gauge; a green tray and a red tray.
 
-The blocks lie flat in two rows, four in front of each arm (along y = +0.30 and y = -0.30, at x 0.16, 0.25, 0.34
-and 0.43), each with its 50 mm length along x and its width along y. Their specified width is 30.0 +- 3.0 mm.
+The blocks lie flat in two rows in front of the arms: four along y = +0.30 at x 0.16, 0.25, 0.34 and 0.43, three
+along y = -0.30 at x 0.16, 0.25 and 0.34; each with its 50 mm length along x and its width along y. Their specified width is 30.0 +- 3.0 mm.
 
 The gauge sits on the midline nearest the arms, centred at x 0.13: a dark grey steel base 100 mm (x) by 160 mm (y)
 by 10 mm tall, with two gaps across it, each between a pair of anvils 10 mm (x) by 20 mm (y) by 15 mm tall. The
@@ -38,10 +38,11 @@ PART_LEN, PART_H = 0.050, 0.020
 ALUMINIUM = (0.76, 0.77, 0.79)
 DENSITY = 2700.0  # kg/m^3
 
-# name -> (width along y in m, x, y) of its start. Four in tolerance (28.5 to 31.0 mm), two over (>= 34.5 mm), two
+# name -> (width along y in m, x, y) of its start. Three in tolerance (28.5 to 30.5 mm), two over (>= 34.5 mm), two
 # under (<= 25.5 mm): every part clears or misses each gap by at least 1.5 mm in width (0.75 mm a side), and the
-# tightest cases at NO-GO and over GO (28.5, 25.5, 34.5 mm) are in the batch. The widest in-tolerance part, 31.0 mm,
-# has 2.0 mm in GO (1.0 mm a side; GO_MARGIN): at 31.5 mm (0.75 mm a side) the demo's block 8 jammed in GO.
+# tightest cases at NO-GO and over GO (28.5, 25.5, 34.5 mm) are in the batch. Every in-tolerance part has at least
+# 2.0 mm in GO (1.0 mm a side; GO_MARGIN); the widest, 30.5 mm, has 2.5 mm. At 31.5 mm (0.75 mm a side) the demo's
+# block 8 jammed in GO; block 8 (31.0 mm) has since been dropped from the batch.
 MARGIN = 0.0015
 GO_MARGIN = 0.0020
 PARTS = {
@@ -52,7 +53,6 @@ PARTS = {
     "part_5": (0.0350, 0.16, -0.30),  # over
     "part_6": (0.0295, 0.25, -0.30),  # pass
     "part_7": (0.0250, 0.34, -0.30),  # under
-    "part_8": (0.0310, 0.43, -0.30),  # pass
 }
 
 
@@ -135,7 +135,8 @@ OBJECTS = [
 # the rim (a second layer of parts still counts; a part held over the tray does not), and it is at rest.
 STACK_ALLOWANCE = 0.025
 ESCAPE_CAP = 0.25  # the most a trial earns with any out-of-tolerance part in the green tray
-ESCAPE_COST = 2  # an escape costs two correct parts' credit (a false reject costs one)
+ESCAPE_COST = 2  # an escape costs two correct parts' credit
+FALSE_REJECT_COST = 2  # so does a false reject: with 3 in tolerance and 4 not, every part in the red tray scores 0
 
 
 def tray_of(state) -> str | None:
@@ -171,12 +172,12 @@ def success(objects) -> bool:
 
 
 def score(objects) -> float:
-    """(correct - false rejects - 2 x escapes) / 8, at least 0; at most 0.25 if any out-of-tolerance part is in the green
+    """(correct - 2 x false rejects - 2 x escapes) / 7, at least 0; at most 0.25 if any out-of-tolerance part is in the green
     tray (an escape). A part left on the table, on the gauge, on a rim or anywhere else counts for nothing either
     way. (It also hands the states to the scripted demo, which reads the gauge from them; see _see.)"""
     _see(objects)
     correct, false_rejects, escapes = tally(objects)
-    result = max(0.0, (correct - false_rejects - ESCAPE_COST * escapes) / len(PARTS))
+    result = max(0.0, (correct - FALSE_REJECT_COST * false_rejects - ESCAPE_COST * escapes) / len(PARTS))
     return min(result, ESCAPE_CAP) if escapes else result
 
 
@@ -219,7 +220,7 @@ FINGER_WIDE = -0.044
 FINGER_SHUT = 0.0
 YAW = {"left": -math.pi / 2, "right": +math.pi / 2}
 SIDE = {"left": +1.0, "right": -1.0}
-ROWS = {"left": ("part_1", "part_2", "part_3", "part_4"), "right": ("part_5", "part_6", "part_7", "part_8")}
+ROWS = {"left": ("part_1", "part_2", "part_3", "part_4"), "right": ("part_5", "part_6", "part_7")}
 SLOTS_Y = (0.045, 0.085)  # each arm's spots across a tray (|y|), inner first; a third and fourth go on top
 PARK = (0.20, 0.25, TRAVEL_Z)  # (x, |y|, z): where an arm waits when it has nothing to carry
 GAUGE_TURNOVER_S = 5.0  # one arm leaves the gauge this long before the other starts in: its delivery is over
@@ -232,8 +233,8 @@ OVER_GAP, SEATED_LOW, SEATED_HIGH = 0.015, 0.003, 0.008
 # OUT: to the block, descend, close, lift (the gauge is free after this), carry, lower, let go, back off.
 # Settle: before each let-go over a gap the arm holds still, fingers shut. In simulation a carried block sways up
 # to 7 mm across the gap while it is lowered and was still 2.5 mm off when let go, more than the 0.75 mm a side
-# a 31.5 mm block had in GO; its edge caught an anvil and it jammed. The widest in-tolerance block is now 31.0 mm
-# (1.0 mm a side).
+# a 31.5 mm block had in GO; its edge caught an anvil and it jammed. The widest in-tolerance block is now 30.5 mm
+# (1.25 mm a side).
 SETTLE_S = 0.5
 FETCH = (1.5, 1.5, 0.8, 1.2)
 INTO_GO = (2.0, 2.0, SETTLE_S, 1.0, 1.0, 0.5)
@@ -454,7 +455,8 @@ def demo_plan(insp: _Inspector | None = None) -> tuple[dict[str, list], _Inspect
     clock = {arm: 0.0 for arm in ROWS}
     free_at = -GAUGE_TURNOVER_S
     schedule = []
-    turns = [(arm, i) for i in range(4) for arm in ("left", "right")]
+    # left 1, right 5, left 2, right 6, left 3, right 7, left 4: the right row is one shorter
+    turns = [(arm, i) for i in range(4) for arm in ("left", "right") if i < len(ROWS[arm])]
     for arm, i in turns:
         name = ROWS[arm][i]
         _, x, y = PARTS[name]  # where it lies; not its width

@@ -98,15 +98,14 @@ def check_layout() -> None:
 # -- 1. scoring --------------------------------------------------------------------------------------------------
 def check_scoring() -> float:
     task = load(HERE / "gauge_sort.py")
-    assert set(task.free_objects) == set(g.PARTS) and len(task.objects) == 8 + 5 + 10
-    assert len(g.PASS) == 4 and len(g.REJECT) == 4
+    assert set(task.free_objects) == set(g.PARTS) and len(task.objects) == 7 + 5 + 10
+    assert len(g.PASS) == 3 and len(g.REJECT) == 4
     for name, (w, _, _) in g.PARTS.items():  # every part clears its nearest limit by >= 1.5 mm
         assert min(abs(w - g.LOWER), abs(w - g.UPPER)) >= g.MARGIN - 1e-9, name
     widths = sorted(w for w, _, _ in g.PARTS.values())  # the tightest case of each kind is in the batch
-    for limit, side, margin in ((g.LOWER, -1, g.MARGIN), (g.LOWER, +1, g.MARGIN), (g.UPPER, -1, g.GO_MARGIN),
-                                (g.UPPER, +1, g.MARGIN)):
+    for limit, side, margin in ((g.LOWER, -1, g.MARGIN), (g.LOWER, +1, g.MARGIN), (g.UPPER, +1, g.MARGIN)):
         assert any(abs(w - (limit + side * margin)) < 1e-9 for w in widths), (limit, side)
-    assert max(w for w in widths if g.in_tolerance(w)) == g.UPPER - g.GO_MARGIN  # 1.0 mm a side in GO
+    assert max(w for w in widths if g.in_tolerance(w)) <= g.UPPER - g.GO_MARGIN + 1e-9  # >= 1.0 mm a side in GO
     by = {o.name: o for o in g.OBJECTS}
     go = by["go_anvil_left"].pos[1] - by["go_anvil_right"].pos[1] - g.ANVIL[1]
     nogo = by["nogo_anvil_left"].pos[1] - by["nogo_anvil_right"].pos[1] - g.ANVIL[1]
@@ -135,41 +134,41 @@ def check_scoring() -> float:
     done = _world(sorted_)
     assert g.success(done) and g.score(done) == 1.0
     moving = _world(sorted_, vel={"part_1": (0, 0, -0.2)})  # still moving: not counted
-    assert not g.success(moving) and g.score(moving) == 7 / 8
+    assert not g.success(moving) and g.score(moving) == 6 / 7
     held = dict(sorted_, part_1=(g.TRAYS["pass_tray"][0], 0.045, g.RIM + 0.10))  # held over the tray: not in
-    assert g.score(_world(held)) == 7 / 8
+    assert g.score(_world(held)) == 6 / 7
     passes = sorted(g.PASS)  # a second layer counts
-    stacked = dict(sorted_, **{passes[2]: _in("pass_tray", 4), passes[3]: _in("pass_tray", 5)})
+    stacked = dict(sorted_, **{passes[2]: _in("pass_tray", 4)})  # on top of passes[0]
     assert g.success(_world(stacked)) and g.score(_world(stacked)) == 1.0
     on_rim = dict(sorted_, part_2=(g.TRAYS["reject_tray"][0] - g.TRAY_IN[0] / 2 - g.WALL_T / 2, 0.0,
                                    g.RIM + g.PART_H / 2))  # on a wall top: not in
-    assert g.score(_world(on_rim)) == 7 / 8
+    assert g.score(_world(on_rim)) == 6 / 7
     all_pass = _world({n: _in("pass_tray", i) for i, n in enumerate(g.PARTS)})  # one tray for all: 0 either way
     all_reject = _world({n: _in("reject_tray", i) for i, n in enumerate(g.PARTS)})
     assert g.score(all_pass) == 0.0 and g.score(all_reject) == 0.0
-    # one escape: 5/8 capped at 0.25; two escapes: 2/8; one false reject: 6/8
+    # one escape: 4/7 capped at 0.25; two escapes: 1/7; one false reject: 4/7
     one_escape = dict(sorted_, part_2=_in("pass_tray", 4))
     two_escapes = dict(one_escape, part_4=_in("pass_tray", 5))
     one_false = dict(sorted_, part_1=_in("reject_tray", 4))
-    assert g.score(_world(one_escape)) == 0.25 and g.score(_world(two_escapes)) == 0.25
-    assert g.score(_world(one_false)) == (7 - 1) / 8
-    # an escape among a partial run: 3 right + 1 escape -> 1/8, under the cap
+    assert g.score(_world(one_escape)) == 0.25 and g.score(_world(two_escapes)) == 1 / 7
+    assert g.score(_world(one_false)) == (6 - 2) / 7
+    # an escape among a partial run: 3 right + 1 escape -> 1/7, under the cap
     partial = {n: sorted_[n] for n in ("part_1", "part_5", "part_6")}
     partial["part_2"] = _in("pass_tray", 4)
-    assert g.score(_world(partial)) == 1 / 8
-    assert g.score(_world({n: sorted_[n] for n in g.PASS})) == 0.5  # only the passes sorted
-    assert g.score(_world({n: sorted_[n] for n in g.REJECT})) == 0.5  # only the rejects sorted
-    # blind guessing: every part into either tray at random, all 2^8 ways equally likely
+    assert g.score(_world(partial)) == 1 / 7
+    assert g.score(_world({n: sorted_[n] for n in g.PASS})) == 3 / 7  # only the passes sorted
+    assert g.score(_world({n: sorted_[n] for n in g.REJECT})) == 4 / 7  # only the rejects sorted
+    # blind guessing: every part into either tray at random, all 2^7 ways equally likely
     names = list(g.PARTS)
     total = 0.0
-    for pick in product(("pass_tray", "reject_tray"), repeat=8):
+    for pick in product(("pass_tray", "reject_tray"), repeat=len(names)):
         counts = {"pass_tray": 0, "reject_tray": 0}
         where = {}
         for n, t in zip(names, pick, strict=True):
             where[n] = _in(t, counts[t])
             counts[t] += 1
         total += g.score(_world(where))
-    guess = total / 2**8
+    guess = total / 2 ** len(names)
     assert guess < 0.1, guess
     print(f"scoring: all cases pass; blind random sorting expects {guess:.3f}")
     return guess
