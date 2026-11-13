@@ -15,5 +15,5 @@
   "run_limit": "6,000 steps (5 minutes at 20 Hz)",
   "reset_notes": "Nothing is consumed. Return each block, by the number on its underside, to its starting place, lying along x.",
   "fidelity": "Approximate. Blocks, gauge and trays are rigid boxes with one shared rubber-like friction (1.2 static, 1.0 dynamic), more than aluminium on steel. The tolerance is scaled up: real gap gauges work to hundredths of a millimetre, here every block clears or misses each gap by at least 1.5 mm in width (0.75 mm a side), and every in-tolerance block clears the GO gap by at least 2.0 mm (1.0 mm a side), so the simulated contacts resolve it. The anvils have square edges with no lead-in chamfer, so a block that is in tolerance but held more than about 7 degrees off the gap's axis can catch on the anvils, as with a real gauge. Masses follow aluminium's density.",
-  "scores": "TODO: Dream-1 run: ?; demo: ? (fill in from the GPU runs)"
+  "scores": "Dream-1 run: 0.0; demo: 1.0"
 }
