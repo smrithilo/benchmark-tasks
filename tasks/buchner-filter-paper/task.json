@@ -1,0 +1,21 @@
+{
+  "title": "Seat and wet a filter-paper disk in a Buchner funnel before filtration",
+  "category": "Impact on jobs",
+  "keywords": [
+    "bimanual",
+    "laboratory",
+    "vacuum filtration",
+    "placement accuracy",
+    "sequencing",
+    "tool use"
+  ],
+  "instruction": "Prepare the Buchner funnel for filtration: lay the filter paper flat on the funnel's perforated plate so it covers every hole, then wet it with the wash bottle so it seals against the plate, and put the wash bottle back down upright. Do not add the sample.",
+  "context": "Seating and wetting the filter paper is the first step of every vacuum filtration in chemistry and biology labs. Paper that is off-centre, folded or dry lets solids bypass the filter, and the paper must be wetted only after it is in place and before any sample goes in.",
+  "setup": "Table top at 74.75 cm, two 6-DoF arms with parallel grippers on the back edge, bases 61 cm apart; an overhead camera and a camera on each wrist. Positions are object centres in cm, x forward from the arm bases, y to the left, origin midway between the bases. Filter paper: white cellulose sheet, 4.5 cm (x) by 3.5 cm (y), 8 mm thick in simulation, lying flat and centred on a grey paper post (2 x 2 cm, 3 cm tall) at (22, 30), overhanging it all round. Filter plate (porcelain, fixed) on a dark stand (5.8 x 3 cm, 3.5 cm tall) at (25, 0): flat plate 5 cm (x) by 3 cm (y), its top 4 cm above the table, perforated over the central 3.5 x 2 cm (shown dark grey), with a 4 mm lip rising 5 mm above the plate along its front and back edges; its left and right sides are open, so the 3.5 cm sheet overhangs them by 2.5 mm. Wash bottle: pale blue LDPE squeeze bottle with a bent nozzle, 4 cm diameter x 8 cm tall, about 60 ml of water (80 g), standing upright at (25, -25). Sample beaker: amber glass beaker, 6 cm diameter x 7 cm tall, holding 100 ml of sand slurry (200 g), at (17, -37). Exact values are in buchner_filter_paper.py.",
+  "scoring": "Scored at the end of the run, from a photo straight down into the funnel and the trial video. Seated: the paper's centre is within 4 mm of the plate's centre (so it covers every hole: the sheet extends 5 mm past the perforated area on every side), it lies flat on the plate (no fold or crease; no edge more than 2 mm above the plate) and does not ride up the lips. 0.4 if seated; 0.15 if the paper is inside the funnel but not seated. +0.4 if the paper is seated and was wetted after it was seated: the whole disk is evenly wet with no dry patch larger than 5 mm, and no water entered the funnel before the paper was seated (from the video). +0.2 if, after a creditable wetting, the wash bottle stands upright on the table clear of the funnel stand. The score is 0 if the sample beaker is lifted over the funnel or tipped over. In simulation, where paper and water are not modelled, wetting is credited when the upright wash bottle is held over the seated paper (bottle centre within 2 cm of the funnel axis, its bottom 0.5 to 6 cm above the rim) for 1 s; holding it there before the paper is seated forfeits both wetting credits.",
+  "run_limit": "2,400 steps (2 minutes at 20 Hz)",
+  "reset_notes": "A wetted paper can't be reused: use a fresh disk each trial, dry the plate, and refill the wash bottle to 100 ml.",
+  "fidelity": "Rigid-body approximation. The paper is a rigid rectangular sheet 8 mm thick and 3.5 cm across the gripper's closing direction (real filter paper is about 0.2 mm, flexible and usually round): the parallel gripper's flat pads hold it by two side faces at their centre, whereas a thin rigid disk, touched at two points on its edge, turned over between the pads, and a sheet held only by the finger tips slipped out. Folds, creases, wetting, the capillary seal and water flow are not modelled, and the wash bottle can't be squeezed or dispense. The Buchner funnel is reduced to a flat filter plate with lips only on its front and back edges (a real funnel has a round plate inside a wall), so the fingers can pass down beside the plate and set the sheet on it. The simulation checks placement accuracy and the order of placing and wetting; seal quality is judged only in real-world trials.",
+  "scores": "Dream-1 run: 0.0; demo: 1.0",
+  "media": "M-FWR23Q"
+}
